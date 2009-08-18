@@ -65,10 +65,15 @@ module Fetcher
     
     # Delete messages and log out
     def close_connection
-      unless @connect.nil?
+      unless @connection.nil?
         @connection.expunge
         @connection.logout
-        @connection.disconnect
+        begin
+          @connection.disconnect
+        rescue
+          #due to imap bug which seems to be fixed in ruby 1.9
+          #http://redmine.ruby-lang.org/issues/show/465
+        end
       end
     end
     

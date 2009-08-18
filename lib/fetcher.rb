@@ -13,7 +13,7 @@ module Fetcher
   def self.create(options={})
     klass = options.delete(:type)
     raise ArgumentError, 'Must supply a type' unless klass
-    module_eval "#{klass.to_s.capitalize}.new(options)"
+    module_eval "#{klass.to_s.classify}.new(options)"
   end
 end
 
