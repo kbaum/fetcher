@@ -104,15 +104,8 @@ class ImapTest < Test::Unit::TestCase
   end
 
   def test_get_messages
-    establish_connection
-    @connection.expects(:select).with('INBOX')
     @uids = [1,2,3,4]
-    @connection.expects(:uid_search).with(['ALL']).returns(@uids)
-    @messages = @uids.collect do |uid|
-      @message = "message_#{uid}"
-      @connection.expects(:uid_fetch).with(uid, 'RFC822').returns([stub(:attr=>{'RFC822'=>@message})])
-      [@message, uid]
-    end
+    perform_search
     @messages.each do |msg_uid_array|
       msg = msg_uid_array.first
       uid = msg_uid_array.last
@@ -123,7 +116,30 @@ class ImapTest < Test::Unit::TestCase
     @imap.fetch
   end
 
+  def test_get_messages_with_error
+    @uids = [1]
+    perform_search
+    @imap.expects(:process_message).with('message_1').raises(RuntimeError.new('error'))
+    @connection.expects(:list).with("", 'bogus').returns(nil)
+    @connection.expects(:create).with('bogus')
+    @connection.expects(:append).with('bogus', 'message_1')
+    @imap.expects(:custom_handle_bogus_message)
+    @connection.expects(:uid_store).with(1, "+FLAGS", [:Seen, :Deleted])
+    @imap.fetch
+  end
+
   protected
+
+  def perform_search
+    establish_connection
+    @connection.expects(:select).with('INBOX')
+    @connection.expects(:uid_search).with(['ALL']).returns(@uids)
+    @messages = @uids.collect do |uid|
+      @message = "message_#{uid}"
+      @connection.expects(:uid_fetch).with(uid, 'RFC822').returns([stub(:attr=>{'RFC822'=>@message})])
+      [@message, uid]
+    end
+  end
 
   def establish_connection
     @connection = mock()
