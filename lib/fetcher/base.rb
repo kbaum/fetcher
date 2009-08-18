@@ -28,9 +28,12 @@ module Fetcher
     
     # Run the fetching process
     def fetch
-      establish_connection
-      get_messages
-      close_connection
+      begin
+        establish_connection
+        get_messages
+      ensure
+        close_connection
+      end
     end
     
     protected
@@ -56,7 +59,7 @@ module Fetcher
     end
     
     # Stub. Should be overridden by subclass.
-    def handle_bogus_message(message) #:nodoc:
+    def handle_bogus_message(message, exception) #:nodoc:
       raise NotImplementedError, "This method should be overridden by subclass"
     end
   end

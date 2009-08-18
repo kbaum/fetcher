@@ -27,8 +27,8 @@ module Fetcher
         @connection.each_mail do |msg|
           begin
             process_message(msg.pop)
-          rescue
-            handle_bogus_message(msg.pop)
+          rescue => exc
+            handle_bogus_message(msg.pop, exc)
           end
           # Delete message from server
           msg.delete
@@ -37,7 +37,7 @@ module Fetcher
     end
     
     # Store the message for inspection if the receiver errors
-    def handle_bogus_message(message)
+    def handle_bogus_message(message, exc)
       # This needs a good solution
     end
     

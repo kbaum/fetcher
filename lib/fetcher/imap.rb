@@ -42,25 +42,34 @@ module Fetcher
         begin
           process_message(msg)
           add_to_processed_folder(uid) if @processed_folder
-        rescue
-          handle_bogus_message(msg)
+        rescue => exc
+          handle_bogus_message(msg, exc)
+        ensure
+          # Mark message as deleted
+          @connection.uid_store(uid, "+FLAGS", [:Seen, :Deleted])
         end
-        # Mark message as deleted 
-        @connection.uid_store(uid, "+FLAGS", [:Seen, :Deleted])
       end
     end
     
     # Store the message for inspection if the receiver errors
-    def handle_bogus_message(message)
+    def handle_bogus_message(message, exception)
       create_mailbox(@error_folder)
       @connection.append(@error_folder, message)
+      custom_handle_bogus_message(message, exception)
+    end
+
+    #for subclassers to implement custom exception handling
+    def custom_handle_bogus_message(message, exception)
+
     end
     
     # Delete messages and log out
     def close_connection
-      @connection.expunge
-      @connection.logout
-      @connection.disconnect
+      unless @connect.nil?
+        @connection.expunge
+        @connection.logout
+        @connection.disconnect
+      end
     end
     
     def add_to_processed_folder(uid)

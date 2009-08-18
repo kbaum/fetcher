@@ -3,6 +3,7 @@ require 'rubygems'
 require 'test/unit'
 require 'mocha'
 require 'fetcher'
+require 'ruby-debug'
 
 class FetcherTest < Test::Unit::TestCase
   
@@ -16,6 +17,16 @@ class FetcherTest < Test::Unit::TestCase
     assert_equal 'name', @fetcher.instance_variable_get(:@username)
     assert_equal 'password', @fetcher.instance_variable_get(:@password)
     assert_equal @receiver, @fetcher.instance_variable_get(:@receiver)
+  end
+
+  def test_fetch
+    create_fetcher
+    @fetcher.expects(:establish_connection)
+    @fetcher.expects(:get_messages).raises(RuntimeError.new('error'))
+    @fetcher.expects(:close_connection)
+    assert_raise RuntimeError do
+      @fetcher.fetch
+    end
   end
   
   def test_should_require_subclass
@@ -50,14 +61,14 @@ class FactoryFetcherTest < Test::Unit::TestCase
   def setup
     @receiver = mock()
     @pop_fetcher = Fetcher.create(:type => :pop, :server => 'test.host',
-                               :username => 'name',
-                               :password => 'password',
-                               :receiver => @receiver)
+      :username => 'name',
+      :password => 'password',
+      :receiver => @receiver)
     
-  @imap_fetcher = Fetcher.create(:type => :imap, :server => 'test.host',
-                              :username => 'name',
-                              :password => 'password',
-                              :receiver => @receiver)
+    @imap_fetcher = Fetcher.create(:type => :imap, :server => 'test.host',
+      :username => 'name',
+      :password => 'password',
+      :receiver => @receiver)
   end
   
   def test_should_be_sublcass
@@ -72,3 +83,53 @@ class FactoryFetcherTest < Test::Unit::TestCase
 end
 
 # Write tests for sub-classes
+
+class ImapTest < Test::Unit::TestCase
+
+  def setup
+    @server = 'test.host'
+    @username = 'name'
+    @password = 'password'
+    @imap = Fetcher::Imap.new( :receiver => mock(),
+      :server => @server,
+      :username => @username,
+      :password => @password,
+      :use_login=>true,
+      :processed_folder=>'processed'
+    )
+  end
+
+  def test_close_connection_with_nil_connection
+    @imap.send(:close_connection)
+  end
+
+  def test_get_messages
+    establish_connection
+    @connection.expects(:select).with('INBOX')
+    @uids = [1,2,3,4]
+    @connection.expects(:uid_search).with(['ALL']).returns(@uids)
+    @messages = @uids.collect do |uid|
+      @message = "message_#{uid}"
+      @connection.expects(:uid_fetch).with(uid, 'RFC822').returns([stub(:attr=>{'RFC822'=>@message})])
+      [@message, uid]
+    end
+    @messages.each do |msg_uid_array|
+      msg = msg_uid_array.first
+      uid = msg_uid_array.last
+      @imap.expects(:process_message).with(msg)
+      @imap.expects(:add_to_processed_folder).with(uid)
+      @connection.expects(:uid_store).with(uid, "+FLAGS", [:Seen, :Deleted])
+    end
+    @imap.fetch
+  end
+
+  protected
+
+  def establish_connection
+    @connection = mock()
+    Net::IMAP.expects(:new).with(@server, 143, nil).returns(@connection)
+    @connection.expects(:login).with(@username, @password)
+  end
+
+
+end
